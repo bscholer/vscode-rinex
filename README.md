@@ -66,6 +66,26 @@ code --install-extension rinex-tools-0.1.0.vsix      # or: cursor --install-exte
 
 No build step — plain CommonJS JavaScript.
 
+## Releasing
+
+CI is in `.github/workflows/`: `ci.yml` runs the tests + a packaging smoke test on every push/PR; `release.yml` builds and publishes the `.vsix` when a `v*` tag is pushed.
+
+To cut a release:
+
+```sh
+npm version patch        # bumps package.json (use minor/major as needed) and creates a vNNN tag
+git push --follow-tags   # pushes main + the tag
+```
+
+The tag push triggers `release.yml`, which:
+
+1. runs `npm test`,
+2. checks the tag matches `package.json` version (fails if they drift),
+3. packages `rinex-tools-<version>.vsix`,
+4. publishes a GitHub Release with auto-generated notes and the vsix attached.
+
+Users then install the vsix from the [Releases page](https://github.com/bscholer/vscode-rinex/releases) (see *Install from source* above for the command). No publish step to the VS Code Marketplace / Open VSX is wired up — add `vsce publish` / `ovsx publish` steps (with tokens as repo secrets) if you want one-click in-editor installs later.
+
 ## Roadmap
 
 - Diagnostics: field-count mismatch vs header, bad epoch flags, width drift; flag known DJI BeiDou **B2I-mislabeled-as-C5I** observables.
