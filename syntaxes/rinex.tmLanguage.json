@@ -1,0 +1,59 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "RINEX",
+  "scopeName": "source.rinex",
+  "patterns": [
+    { "include": "#header-label" },
+    { "include": "#epoch" },
+    { "include": "#data-record" }
+  ],
+  "repository": {
+    "header-label": {
+      "comment": "RINEX header descriptor lives in columns 61-80 (0-indexed 60).",
+      "match": "(?<=^.{60})(.{1,20})\\s*$",
+      "captures": {
+        "1": { "name": "keyword.control.header-label.rinex" }
+      }
+    },
+    "epoch": {
+      "comment": "Epoch record: > YYYY MM DD HH MM SS.SSSSSSS  flag  nsat",
+      "match": "^(>)\\s*(\\d{4})\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s+([\\d.]+)\\s+(\\d+)\\s+(\\d+)",
+      "captures": {
+        "1": { "name": "punctuation.definition.epoch.rinex" },
+        "2": { "name": "constant.numeric.year.rinex" },
+        "3": { "name": "constant.numeric.month.rinex" },
+        "4": { "name": "constant.numeric.day.rinex" },
+        "5": { "name": "constant.numeric.hour.rinex" },
+        "6": { "name": "constant.numeric.minute.rinex" },
+        "7": { "name": "constant.numeric.second.rinex" },
+        "8": { "name": "keyword.other.epoch-flag.rinex" },
+        "9": { "name": "constant.numeric.nsat.rinex" }
+      }
+    },
+    "data-record": {
+      "begin": "^([GREJCSI])([ \\d]\\d)",
+      "beginCaptures": {
+        "1": { "name": "entity.name.class.constellation.rinex" },
+        "2": { "name": "entity.name.function.prn.rinex" }
+      },
+      "end": "$",
+      "patterns": [
+        { "include": "#observation" }
+      ]
+    },
+    "observation": {
+      "patterns": [
+        {
+          "comment": "negative observation value",
+          "match": "-\\d+\\.\\d+",
+          "name": "constant.numeric.negative.rinex"
+        },
+        {
+          "comment": "positive observation value",
+          "match": "\\d+\\.\\d+",
+          "name": "constant.numeric.rinex"
+        }
+      ]
+    }
+  }
+}

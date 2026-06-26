@@ -1,0 +1,115 @@
+{
+  "name": "rinex-tools",
+  "displayName": "RINEX Tools",
+  "description": "Syntax highlighting and observation-code hovers for RINEX GNSS observation files.",
+  "version": "0.1.0",
+  "publisher": "bscholer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bscholer/vscode-rinex.git"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./extension.js",
+  "scripts": {
+    "test": "node test/test.js"
+  },
+  "activationEvents": [
+    "onLanguage:rinex"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "rinex",
+        "aliases": [
+          "RINEX",
+          "rinex"
+        ],
+        "extensions": [
+          ".obs",
+          ".OBS",
+          ".rnx",
+          ".RNX",
+          ".nav",
+          ".NAV",
+          ".crx",
+          ".CRX"
+        ],
+        "filenamePatterns": [
+          "*.[0-9][0-9][oOnNgGlLdDfFqQmMhHcCpP]"
+        ],
+        "firstLine": "RINEX VERSION / TYPE\\s*$",
+        "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "dji-mrk",
+        "aliases": [
+          "DJI MRK",
+          "mrk"
+        ],
+        "extensions": [
+          ".mrk",
+          ".MRK"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "rinex",
+        "scopeName": "source.rinex",
+        "path": "./syntaxes/rinex.tmLanguage.json"
+      }
+    ],
+    "semanticTokenTypes": [
+      { "id": "rinexF0", "description": "RINEX obs column color 0" },
+      { "id": "rinexF1", "description": "RINEX obs column color 1" },
+      { "id": "rinexF2", "description": "RINEX obs column color 2" },
+      { "id": "rinexF3", "description": "RINEX obs column color 3" },
+      { "id": "rinexF4", "description": "RINEX obs column color 4" },
+      { "id": "rinexF5", "description": "RINEX obs column color 5" },
+      { "id": "rinexF6", "description": "RINEX obs column color 6" },
+      { "id": "rinexSat", "description": "RINEX satellite id" },
+      { "id": "rinexEpoch", "description": "RINEX epoch record" },
+      { "id": "rinexLabel", "description": "RINEX header descriptor label (cols 61-80)" },
+      { "id": "rinexSys", "description": "RINEX header system letter" },
+      { "id": "rinexCount", "description": "RINEX header obs count" },
+      { "id": "rinexObsC", "description": "Obs code: pseudorange (C)" },
+      { "id": "rinexObsL", "description": "Obs code: carrier phase (L)" },
+      { "id": "rinexObsD", "description": "Obs code: doppler (D)" },
+      { "id": "rinexObsS", "description": "Obs code: signal strength (S)" },
+      { "id": "rinexHeaderVal", "description": "Numeric value in a header field" },
+      { "id": "rinexFlag", "description": "LLI / SSI flag character" }
+    ],
+    "configurationDefaults": {
+      "editor.semanticHighlighting.enabled": true,
+      "editor.semanticTokenColorCustomizations": {
+        "enabled": true,
+        "rules": {
+          "rinexF0": "#e06c75",
+          "rinexF1": "#d19a66",
+          "rinexF2": "#e5c07b",
+          "rinexF3": "#98c379",
+          "rinexF4": "#56b6c2",
+          "rinexF5": "#61afef",
+          "rinexF6": "#c678dd",
+          "rinexSat": { "foreground": "#ffffff", "bold": true },
+          "rinexEpoch": { "foreground": "#ff79c6", "bold": true },
+          "rinexLabel": { "foreground": "#7f848e", "italic": true },
+          "rinexSys": { "foreground": "#c678dd", "bold": true },
+          "rinexCount": "#abb2bf",
+          "rinexObsC": "#e06c75",
+          "rinexObsL": "#61afef",
+          "rinexObsD": "#98c379",
+          "rinexObsS": "#e5c07b",
+          "rinexHeaderVal": "#56b6c2",
+          "rinexFlag": { "foreground": "#636d83", "bold": true }
+        }
+      }
+    }
+  }
+}
