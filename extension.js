@@ -225,6 +225,62 @@ function hover(markdown) {
   return new vscode.Hover(new vscode.MarkdownString(markdown));
 }
 
+// ---- diagnostics (OBS only) -------------------------------------------------
+let diagnostics;
+
+function refreshDiagnostics(document) {
+  if (!diagnostics) return;
+  if (document.languageId !== "rinex") return;
+
+  const info = getDoc(document);
+  if (info.format !== "OBS" || info.major !== 3) {
+    diagnostics.delete(document.uri);
+    return;
+  }
+
+  const positions = rinex.headerObsCodePositions(info.lines);
+  const implied = rinex.impliedBandFreq(info.lines);
+  const out = [];
+
+  for (const p of positions) {
+    const range = new vscode.Range(p.line, p.col, p.line, p.col + 3);
+
+    // Invalid observation code for this constellation (Warning).
+    const err = rinex.obsCodeError(p.sys, p.code);
+    if (err) {
+      const d = new vscode.Diagnostic(range, `${p.code}: ${err}.`, vscode.DiagnosticSeverity.Warning);
+      d.source = "rinex";
+      d.code = "invalid-obs-code";
+      out.push(d);
+    }
+
+    // Frequency mismatch: data physically at a different band than declared (Error).
+    const declared = rinex.BANDS[p.sys] && rinex.BANDS[p.sys][p.code[1]];
+    const impliedMhz = implied[p.sys + p.code[1]];
+    if (declared && impliedMhz != null && Math.abs(impliedMhz - declared[1]) > 5) {
+      // Which band does the observed frequency actually match?
+      let actual = null;
+      const table = rinex.BANDS[p.sys] || {};
+      for (const b in table) {
+        if (Math.abs(table[b][1] - impliedMhz) < 5) actual = { band: b, label: table[b][0], mhz: table[b][1] };
+      }
+      const actualStr = actual
+        ? `matches ${actual.label} / ${actual.mhz} MHz (code band ${actual.band})`
+        : `does not match any known band`;
+      const d = new vscode.Diagnostic(
+        range,
+        `${p.code} declares ${declared[0]} / ${declared[1]} MHz, but the data is at ~${impliedMhz.toFixed(1)} MHz — ${actualStr}. Signal appears mislabeled.`,
+        vscode.DiagnosticSeverity.Error
+      );
+      d.source = "rinex";
+      d.code = "band-frequency-mismatch";
+      out.push(d);
+    }
+  }
+
+  diagnostics.set(document.uri, out);
+}
+
 function activate(context) {
   context.subscriptions.push(
     vscode.languages.registerDocumentSemanticTokensProvider(
@@ -242,9 +298,29 @@ function activate(context) {
       LEGEND
     ),
     vscode.languages.registerHoverProvider("rinex", { provideHover: rinexHover }),
-    vscode.languages.registerHoverProvider("dji-mrk", { provideHover: mrkHover }),
-    vscode.workspace.onDidCloseTextDocument((doc) => cache.delete(doc.uri.toString()))
+    vscode.languages.registerHoverProvider("dji-mrk", { provideHover: mrkHover })
   );
+
+  // Diagnostics for OBS files.
+  diagnostics = vscode.languages.createDiagnosticCollection("rinex");
+  context.subscriptions.push(diagnostics);
+
+  const timers = new Map();
+  const scheduleRefresh = (doc) => {
+    const key = doc.uri.toString();
+    clearTimeout(timers.get(key));
+    timers.set(key, setTimeout(() => refreshDiagnostics(doc), 300));
+  };
+
+  context.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(refreshDiagnostics),
+    vscode.workspace.onDidChangeTextDocument((e) => scheduleRefresh(e.document)),
+    vscode.workspace.onDidCloseTextDocument((doc) => {
+      cache.delete(doc.uri.toString());
+      diagnostics.delete(doc.uri);
+    })
+  );
+  vscode.workspace.textDocuments.forEach(refreshDiagnostics);
 }
 
 function deactivate() {

@@ -20,6 +20,9 @@ VS Code / Cursor extension for RINEX GNSS files (`.OBS`, `.NAV`, `.rnx`, `.YYo`,
 - **OBS flag hovers** — LLI / SSI characters (chars 15–16 of each 16-wide field) decode loss-of-lock and signal-strength bins.
 - **NAV ephemeris hovers** — maps the broadcast-orbit field to its parameter (Keplerian set for G/E/J/C; position/velocity set for R/S).
 - **MRK column hovers** — token index → meaning, mirroring the team's parser (lat/lon/height, N/E/V offsets, per-axis σ).
+- **OBS diagnostics** (squiggles + Problems panel) —
+  - **Invalid observation code** (warning): a declared code isn't valid for its constellation per RINEX 3.05 Table A23 — e.g. QZSS `C2W`/`L2W` (the `W` P(Y) attribute is GPS-only), or BeiDou `C5I` (B2a has no `I` channel).
+  - **Band/frequency mismatch** (error): the actual data in a column is at a different carrier frequency than its code declares, derived from carrier-phase ÷ pseudorange — e.g. DJI M4 BeiDou `C5I` claims B2a (1176.45 MHz) but carries B3 (1268.52 MHz).
 
 ## Standards scope
 
@@ -88,7 +91,7 @@ Users then install the vsix from the [Releases page](https://github.com/bscholer
 
 ## Roadmap
 
-- Diagnostics: field-count mismatch vs header, bad epoch flags, width drift; flag known DJI BeiDou **B2I-mislabeled-as-C5I** observables.
+- More diagnostics: NAV GPS week-rollover (ephemeris epoch off by 1024 weeks), field-count mismatch vs header, missing GLONASS slot/frequency map.
 - RINEX 2.x data coloring/hover; OBS special-event epoch blocks (flag 2–6); Hatanaka decode.
 - CodeLens on epoch lines: decoded per-constellation sat counts.
 - Status-bar readout of constellation / PRN / obs-type under cursor.

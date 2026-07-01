@@ -220,6 +220,104 @@ function describeDataColumn(line, col, obsMap) {
 }
 
 // ---------------------------------------------------------------------------
+// Observation-code validation (RINEX 3.05 Table A23: valid tracking-mode
+// attributes per system + frequency band). Keyed by system letter + band digit.
+// ---------------------------------------------------------------------------
+const OBS_VALID = {
+  G1: "CSLXPWYMN", G2: "CDSLXPWYMN", G5: "IQX",
+  R1: "CP", R2: "CP", R3: "IQX", R4: "ABX", R6: "ABX",
+  E1: "ABCXZ", E5: "IQX", E7: "IQX", E8: "IQX", E6: "ABCXZ",
+  J1: "CSLXZB", J2: "SLX", J5: "IQXDPZ", J6: "SLXEZ",
+  C1: "DPXAN", C2: "IQX", C5: "DPX", C6: "IQXA", C7: "IQXDPZ", C8: "DPX",
+  S1: "C", S5: "IQX",
+};
+
+// Speed of light (m/s), for deriving carrier frequency from phase/pseudorange.
+const C_LIGHT = 299792458;
+
+/**
+ * Validate a 3-char observation code against RINEX 3.05 for its constellation.
+ * Returns null if valid, else a human-readable reason string.
+ */
+function obsCodeError(sysLetter, code) {
+  const band = code[1];
+  const attr = code[2];
+  const key = sysLetter + band;
+  const sysName = CONSTELLATION[sysLetter] || sysLetter;
+  if (!(key in OBS_VALID)) {
+    return `band ${band} is not defined for ${sysName} in RINEX 3.05`;
+  }
+  if (!OBS_VALID[key].includes(attr)) {
+    const bandLabel = (BANDS[sysLetter] && BANDS[sysLetter][band] && BANDS[sysLetter][band][0]) || `band ${band}`;
+    return `tracking attribute '${attr}' is not valid for ${sysName} ${bandLabel} (allowed: ${OBS_VALID[key].split("").join("/")})`;
+  }
+  return null;
+}
+
+/**
+ * Locate every observation code in the header, with its position.
+ * Returns [{sys, code, line, col}] (col = 0-based start of the 3-char code).
+ */
+function headerObsCodePositions(lines) {
+  const out = [];
+  let cur = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const label = line.slice(60, 80).trim();
+    if (label === END_OF_HEADER) break;
+    if (label !== HEADER_LABEL) continue;
+    if (SYS_LETTERS.includes(line[0])) cur = line[0];
+    if (!cur) continue;
+    const region = line.slice(6, 60);
+    const re = /[A-Z][0-9][A-Z0-9]/g;
+    let m;
+    while ((m = re.exec(region)) !== null) {
+      out.push({ sys: cur, code: m[0], line: i, col: 6 + m.index });
+    }
+  }
+  return out;
+}
+
+/**
+ * Sample the data records and return the implied carrier frequency (MHz) for
+ * each system+band, derived from carrier-phase / pseudorange. Frequency is
+ * physical, so this reveals mislabeled bands (e.g. BeiDou C5I carrying B3).
+ * Returns { "<sys><band>": medianMHz }.
+ */
+function impliedBandFreq(lines, sampleLimit = 400) {
+  const { obsMap, headerEndLine } = parseHeader(lines);
+  const samples = {}; // key -> [mhz]
+  let seen = 0;
+  for (let i = headerEndLine + 1; i < lines.length && seen < sampleLimit; i++) {
+    const line = lines[i];
+    const sys = line[0];
+    if (!SYS_LETTERS.includes(sys)) continue;
+    const codes = obsMap[sys];
+    if (!codes) continue;
+    seen++;
+    const idx = {};
+    codes.forEach((c, k) => (idx[c] = k));
+    for (const c of codes) {
+      if (c[0] !== "C") continue;
+      const lCode = "L" + c.slice(1);
+      if (!(lCode in idx)) continue;
+      const C = parseFloat(line.slice(3 + idx[c] * 16, 3 + idx[c] * 16 + 14));
+      const L = parseFloat(line.slice(3 + idx[lCode] * 16, 3 + idx[lCode] * 16 + 14));
+      if (!C || !L) continue;
+      const mhz = (L / C) * C_LIGHT / 1e6;
+      const key = sys + c[1];
+      (samples[key] = samples[key] || []).push(mhz);
+    }
+  }
+  const out = {};
+  for (const key in samples) {
+    const arr = samples[key].sort((a, b) => a - b);
+    out[key] = arr[Math.floor(arr.length / 2)];
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // File-type detection. RINEX puts the file type at column 20 of line 1:
 //   "OBSERVATION DATA"  -> O   |   "N: GNSS NAV DATA" -> N
 // ---------------------------------------------------------------------------
@@ -366,4 +464,8 @@ module.exports = {
   MRK_SCHEMA,
   tokenizeSpans,
   describeMrkColumn,
+  OBS_VALID,
+  obsCodeError,
+  headerObsCodePositions,
+  impliedBandFreq,
 };

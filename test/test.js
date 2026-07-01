@@ -81,4 +81,35 @@ test("MRK token index maps to the documented column meaning", () => {
   assert.match(r.describeMrkColumn(line, spans[1].start + 1), /GPS time of week/);
 });
 
+test("obsCodeError flags invalid codes per constellation, passes valid ones", () => {
+  // QZSS has no P(Y) code, so the GPS-only 'W' attribute is invalid on QZSS L2.
+  assert.ok(r.obsCodeError("J", "C2W"), "QZSS C2W should be rejected");
+  // BeiDou B2a (band 5) uses D/P/X, never 'I'.
+  assert.ok(r.obsCodeError("C", "C5I"), "BeiDou C5I should be rejected");
+  // These are legitimate and must not be flagged.
+  assert.strictEqual(r.obsCodeError("G", "C2W"), null, "GPS C2W (L2 P(Y)) is valid");
+  assert.strictEqual(r.obsCodeError("C", "C7I"), null, "BeiDou C7I (B2I) is valid");
+  assert.strictEqual(r.obsCodeError("E", "L7I"), null, "Galileo L7I (E5b) is valid");
+});
+
+test("impliedBandFreq exposes the mislabeled BeiDou C5I as B3 frequency", () => {
+  const lines = read("sample_m4e.obs");
+  const freq = r.impliedBandFreq(lines);
+  // Sanity: correctly-labeled bands resolve to their true frequency.
+  assert.ok(Math.abs(freq["C2"] - 1561.098) < 3, `B1I ~1561, got ${freq["C2"]}`);
+  assert.ok(Math.abs(freq["C6"] - 1268.52) < 3, `B3 ~1268, got ${freq["C6"]}`);
+  // The bug: C5I claims B2a (1176.45) but the data sits at B3 (1268.52).
+  assert.ok(freq["C5"] != null, "C5 band sampled");
+  assert.ok(Math.abs(freq["C5"] - 1268.52) < 3, `C5 data should be ~1268.5 MHz, got ${freq["C5"]}`);
+  assert.ok(Math.abs(freq["C5"] - 1176.45) > 50, "C5 data is NOT at its declared B2a frequency");
+});
+
+test("headerObsCodePositions locates codes at their header column", () => {
+  const positions = r.headerObsCodePositions(read("sample_m4e.obs"));
+  const c5i = positions.find((p) => p.sys === "C" && p.code === "C5I");
+  assert.ok(c5i, "found C5I in header");
+  const line = read("sample_m4e.obs")[c5i.line];
+  assert.strictEqual(line.slice(c5i.col, c5i.col + 3), "C5I", "position points at the code text");
+});
+
 console.log(`\n${passed} tests passed`);
