@@ -2,7 +2,7 @@
   "name": "rinex-tools",
   "displayName": "RINEX Tools",
   "description": "Syntax highlighting and observation-code hovers for RINEX GNSS observation files.",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "bscholer",
   "license": "MIT",
   "repository": {
