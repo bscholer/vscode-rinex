@@ -22,7 +22,7 @@ VS Code / Cursor extension for RINEX GNSS files (`.OBS`, `.NAV`, `.rnx`, `.YYo`,
 - **MRK column hovers** — token index → meaning, mirroring the team's parser (lat/lon/height, N/E/V offsets, per-axis σ).
 - **OBS diagnostics** (squiggles + Problems panel) —
   - **Invalid observation code** (warning): a declared code isn't valid for its constellation per RINEX 3.05 Table A23 — e.g. QZSS `C2W`/`L2W` (the `W` P(Y) attribute is GPS-only), or BeiDou `C5I` (B2a has no `I` channel).
-  - **Band/frequency mismatch** (error): the actual data in a column is at a different carrier frequency than its code declares, derived from carrier-phase ÷ pseudorange — e.g. DJI M4 BeiDou `C5I` claims B2a (1176.45 MHz) but carries B3 (1268.52 MHz).
+  - **Band/frequency mismatch** (error): the actual data in a column is at a different carrier frequency than its code declares, derived from carrier-phase ÷ pseudorange — e.g. DJI M4 BeiDou `C5I` claims B2a (1176.45 MHz) but carries B3 (1268.52 MHz). The offending **observation cells** are squiggled too, each with the per-row derivation (`~1268.5 MHz from L ÷ C × c`) and a link back to the header declaration. Data-cell diagnostics are capped per file to keep the Problems panel usable.
 
 ## Standards scope
 

@@ -242,6 +242,18 @@ function refreshDiagnostics(document) {
   const implied = rinex.impliedBandFreq(info.lines);
   const out = [];
 
+  // Header code -> its Location, so data-cell diagnostics can point back to it.
+  const headerLoc = {};
+  for (const p of positions) {
+    headerLoc[p.sys + p.code] = new vscode.Location(
+      document.uri,
+      new vscode.Range(p.line, p.col, p.line, p.col + 3)
+    );
+  }
+
+  // Bands whose data frequency contradicts their declared code: sys+band -> info.
+  const mismatchBand = {};
+
   for (const p of positions) {
     const range = new vscode.Range(p.line, p.col, p.line, p.col + 3);
 
@@ -258,7 +270,6 @@ function refreshDiagnostics(document) {
     const declared = rinex.BANDS[p.sys] && rinex.BANDS[p.sys][p.code[1]];
     const impliedMhz = implied[p.sys + p.code[1]];
     if (declared && impliedMhz != null && Math.abs(impliedMhz - declared[1]) > 5) {
-      // Which band does the observed frequency actually match?
       let actual = null;
       const table = rinex.BANDS[p.sys] || {};
       for (const b in table) {
@@ -275,10 +286,77 @@ function refreshDiagnostics(document) {
       d.source = "rinex";
       d.code = "band-frequency-mismatch";
       out.push(d);
+      mismatchBand[p.sys + p.code[1]] = {
+        declared,
+        actualLabel: actual ? actual.label : "unknown band",
+      };
     }
   }
 
+  // Flag the actual observation cells for mismatched bands, with the per-row
+  // derivation. Capped so a long file doesn't flood the Problems panel.
+  if (Object.keys(mismatchBand).length) {
+    flagDataCells(document, info, mismatchBand, headerLoc, out);
+  }
+
   diagnostics.set(document.uri, out);
+}
+
+const MAX_DATA_DIAGS = 800;
+const C_LIGHT = 299792458;
+
+function flagDataCells(document, info, mismatchBand, headerLoc, out) {
+  const { lines, obsMap, headerEndLine } = info;
+  let count = 0;
+  for (let i = headerEndLine + 1; i < lines.length && count < MAX_DATA_DIAGS; i++) {
+    const line = lines[i];
+    const sys = line[0];
+    const codes = obsMap[sys];
+    if (!codes) continue;
+
+    // Which mismatched bands apply to this constellation?
+    for (const band in mismatchBand) {
+      if (band[0] !== sys) continue;
+      const bDigit = band[1];
+      const info2 = mismatchBand[band];
+
+      // Compute this row's frequency from the band's C and L codes.
+      const cIdx = codes.findIndex((c) => c[0] === "C" && c[1] === bDigit);
+      const lIdx = codes.findIndex((c) => c[0] === "L" && c[1] === bDigit);
+      let rowMhz = null;
+      if (cIdx >= 0 && lIdx >= 0) {
+        const C = parseFloat(line.slice(3 + cIdx * 16, 3 + cIdx * 16 + 14));
+        const L = parseFloat(line.slice(3 + lIdx * 16, 3 + lIdx * 16 + 14));
+        if (C && L) rowMhz = (L / C) * C_LIGHT / 1e6;
+      }
+
+      // Squiggle each populated cell of this band in the row.
+      for (let f = 0; f < codes.length; f++) {
+        if (codes[f][1] !== bDigit) continue;
+        const start = 3 + f * 16;
+        if (start >= line.length) break;
+        const raw = line.slice(start, start + 14);
+        if (!raw.trim()) continue;
+        const code = codes[f];
+        const mhz = rowMhz != null ? rowMhz.toFixed(1) : "?";
+        const msg =
+          `${code}: this value is at ~${mhz} MHz (${info2.actualLabel}), derived from carrier-phase ÷ pseudorange × c` +
+          ` — but ${code} declares ${info2.declared[0]} / ${info2.declared[1]} MHz. Signal is mislabeled.`;
+        const d = new vscode.Diagnostic(
+          new vscode.Range(i, start, i, Math.min(start + 14, line.length)),
+          msg,
+          vscode.DiagnosticSeverity.Error
+        );
+        d.source = "rinex";
+        d.code = "mislabeled-observation";
+        const loc = headerLoc[sys + code];
+        if (loc) d.relatedInformation = [new vscode.DiagnosticRelatedInformation(loc, `${code} declared here (SYS / # / OBS TYPES)`)];
+        out.push(d);
+        if (++count >= MAX_DATA_DIAGS) break;
+      }
+      if (count >= MAX_DATA_DIAGS) break;
+    }
+  }
 }
 
 function activate(context) {
